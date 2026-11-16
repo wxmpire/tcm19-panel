@@ -4,7 +4,7 @@
 # One-liner:   bash <(curl -Ls https://YOUR-HOST/install.sh) https://YOUR-HOST/vpnpanel-installer.tgz
 # From folder: bash install.sh
 # Optional env (skips the matching question): PANEL_MODE=ip|domain PANEL_DOMAIN=example.com PANEL_PORT=34567
-#   PANEL_USER=name PANEL_PASS=secret INSTALL_XRAY=y|n INSTALL_SINGBOX=y|n INSTALL_WIREGUARD=y|n PANEL_URL=https://.../vpnpanel-installer.tgz
+#   PANEL_USER=name PANEL_PASS=secret INSTALL_XRAY=y|n INSTALL_SINGBOX=y|n INSTALL_MIHOMO=y|n INSTALL_WIREGUARD=y|n PANEL_URL=https://.../vpnpanel-installer.tgz
 set -uo pipefail
 
 P=/opt/vpnpanel
@@ -65,7 +65,7 @@ fi
 
 # ================= questions (skipped when updating an existing install) =================
 UPGRADE=0; [ -f "$SVC" ] && UPGRADE=1
-MODE="ip"; DOMAIN=""; ADMIN_USER=""; ADMIN_PASS=""; DO_XRAY=1; DO_SB=1; DO_WG=1
+MODE="ip"; DOMAIN=""; ADMIN_USER=""; ADMIN_PASS=""; DO_XRAY=1; DO_SB=1; DO_ML=1; DO_WG=1
 
 if [ "$UPGRADE" = 0 ]; then
   echo
@@ -93,19 +93,53 @@ if [ "$UPGRADE" = 0 ]; then
   ADMIN_PASS="${PANEL_PASS:-$(ask "Admin password (Enter = random): " "")}"
   [ -n "$ADMIN_PASS" ] || ADMIN_PASS="$(rand_str 16 'A-Za-z0-9')"
   # 3) engines, one by one
-  for E in XRAY SINGBOX WIREGUARD; do
-    case "$E" in XRAY) L="Xray";; SINGBOX) L="sing-box (Hysteria2, TUIC, ...)";; WIREGUARD) L="WireGuard";; esac
+  for E in XRAY SINGBOX MIHOMO WIREGUARD; do
+    case "$E" in XRAY) L="Xray";; SINGBOX) L="sing-box (Hysteria2, TUIC, ...)";; MIHOMO) L="Mihomo (Mieru, Sudoku, ShadowQUIC, TrustTunnel)";; WIREGUARD) L="WireGuard";; esac
     v="INSTALL_$E"; envyn "${!v:-}"; r=$?
     if [ $r = 2 ]; then yesno "Install $L?" y && r=0 || r=1; fi
-    case "$E" in XRAY) DO_XRAY=$((r==0?1:0));; SINGBOX) DO_SB=$((r==0?1:0));; WIREGUARD) DO_WG=$((r==0?1:0));; esac
+    case "$E" in XRAY) DO_XRAY=$((r==0?1:0));; SINGBOX) DO_SB=$((r==0?1:0));; MIHOMO) DO_ML=$((r==0?1:0));; WIREGUARD) DO_WG=$((r==0?1:0));; esac
   done
   echo
   echo " Address : $([ "$MODE" = domain ] && echo "domain $DOMAIN (https)" || echo "server IP (http)")"
-  echo " Engines : xray=$DO_XRAY sing-box=$DO_SB wireguard=$DO_WG"
+  echo " Engines : xray=$DO_XRAY sing-box=$DO_SB mihomo=$DO_ML wireguard=$DO_WG"
   echo "====================================================="
 else
   say "Existing install found: updating code only (data, port and service are kept)"
 fi
+
+# ---------- Mihomo (Clash.Meta) engine ----------
+install_mihomo() {
+  local arch tag url tmp
+  case "$(uname -m)" in x86_64|amd64) arch=amd64;; aarch64|arm64) arch=arm64;; armv7l) arch=armv7;; *) echo "[!] Unsupported CPU for Mihomo: $(uname -m)"; return 1;; esac
+  tmp="$(mktemp -d)"
+  url="$(curl -fsSL --retry 3 https://api.github.com/repos/MetaCubeX/mihomo/releases/latest 2>/dev/null \
+        | grep -o "https://[^\"]*mihomo-linux-${arch}-v[0-9]*\.[0-9]*\.[0-9]*\.gz" | head -1)"
+  if [ -z "$url" ]; then echo "[!] Could not find the Mihomo release (GitHub unreachable?)"; rm -rf "$tmp"; return 1; fi
+  curl -fL --retry 3 -o "$tmp/m.gz" "$url" || { echo "[!] Mihomo download failed"; rm -rf "$tmp"; return 1; }
+  gunzip -f "$tmp/m.gz" && install -m 755 "$tmp/m" /usr/local/bin/mihomo || { echo "[!] Mihomo install failed"; rm -rf "$tmp"; return 1; }
+  rm -rf "$tmp"
+  mkdir -p /etc/mihomo
+  cat > /etc/systemd/system/mihomo.service <<'UNIT'
+[Unit]
+Description=Mihomo (Clash.Meta) engine for tcm19
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/mihomo -d /etc/mihomo -f /etc/mihomo/config.yaml
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=1048576
+AmbientCapabilities=CAP_NET_BIND_SERVICE CAP_NET_ADMIN
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+  systemctl daemon-reload
+  systemctl enable mihomo >/dev/null 2>&1 || true
+  echo "Mihomo installed: $(/usr/local/bin/mihomo -v 2>/dev/null | head -1)"
+  echo "(the service starts automatically when you add the first Mihomo inbound in the panel)"
+}
 
 # ---------- system packages ----------
 say "Installing system packages"
@@ -132,6 +166,10 @@ if [ "$UPGRADE" = 0 ]; then
   if [ "$DO_SB" = 1 ] && ! command -v sing-box >/dev/null 2>&1; then
     say "Installing sing-box"
     curl -fsSL https://sing-box.app/install.sh | sh || warn "sing-box install failed; later: tcm19 -> Reinstall / upgrade engines"
+  fi
+  if [ "$DO_ML" = 1 ] && [ ! -x /usr/local/bin/mihomo ]; then
+    say "Installing Mihomo"
+    install_mihomo || warn "Mihomo install failed; later: tcm19 -> Engines -> Mihomo"
   fi
 fi
 
