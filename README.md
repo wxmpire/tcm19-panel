@@ -50,7 +50,7 @@ cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install.sh
 
 - **Users and subscriptions:** quota, expiry, periodic reset, device limit, speed limit (WireGuard/OpenVPN), bulk creation, online users with kick, account-sharing detection by IP country, activity log and usage charts
 - **Engines and protocols:** VLESS, VMess, Trojan, Shadowsocks (Xray / sing-box); Mieru, Sudoku, ShadowQUIC, TrustTunnel (Mihomo); WireGuard; OpenVPN. Install, update, start/stop and remove engines from the Engines page
-- **Outbounds and routing:** Direct, Block, Cloudflare WARP, Tor, Psiphon (per country), NordVPN (NordLynx, several countries at once), SOCKS5/HTTP/Shadowsocks/WireGuard upstreams; routing rules validated before applying; per-country exits for users
+- **Outbounds and routing:** Direct, Block, Cloudflare WARP, Tor, Psiphon (per country), NordVPN (NordLynx, several countries at once, also as per-country exits), SOCKS5/HTTP/Shadowsocks/WireGuard upstreams; routing rules validated before applying; per-country exits for users
 - **Per-user blocks:** torrent, ads, adult sites, QUIC (on/off per user, or for all users of a reseller; Xray inbounds and nodes)
 - **Reseller admins:** separate admins with user/traffic quotas and allowed inbounds
 - **Nodes:** Xray and WireGuard on extra servers, managed from one panel
