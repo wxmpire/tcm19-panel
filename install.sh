@@ -4,7 +4,7 @@
 # One-liner:   bash <(curl -Ls https://YOUR-HOST/install.sh) https://YOUR-HOST/vpnpanel-installer.tgz
 # From folder: bash install.sh
 # Optional env (skips the matching question): PANEL_MODE=ip|domain PANEL_DOMAIN=example.com PANEL_PORT=34567
-#   PANEL_USER=name PANEL_PASS=secret INSTALL_XRAY=y|n INSTALL_SINGBOX=y|n INSTALL_MIHOMO=y|n INSTALL_WIREGUARD=y|n PANEL_URL=https://.../vpnpanel-installer.tgz
+#   PANEL_USER=name PANEL_PASS=secret INSTALL_XRAY=y|n INSTALL_SINGBOX=y|n INSTALL_MIHOMO=y|n INSTALL_WIREGUARD=y|n INSTALL_OPENVPN=y|n PANEL_URL=https://.../vpnpanel-installer.tgz
 set -uo pipefail
 
 P=/opt/vpnpanel
@@ -65,7 +65,7 @@ fi
 
 # ================= questions (skipped when updating an existing install) =================
 UPGRADE=0; [ -f "$SVC" ] && UPGRADE=1
-MODE="ip"; DOMAIN=""; ADMIN_USER=""; ADMIN_PASS=""; DO_XRAY=1; DO_SB=1; DO_ML=1; DO_WG=1
+MODE="ip"; DOMAIN=""; ADMIN_USER=""; ADMIN_PASS=""; DO_XRAY=1; DO_SB=1; DO_ML=1; DO_WG=1; DO_OV=1; DO_BOT=0; BOT_TOKEN="${TG_TOKEN:-}"; BOT_OWNER="${TG_OWNER:-}"
 
 if [ "$UPGRADE" = 0 ]; then
   echo
@@ -93,15 +93,29 @@ if [ "$UPGRADE" = 0 ]; then
   ADMIN_PASS="${PANEL_PASS:-$(ask "Admin password (Enter = random): " "")}"
   [ -n "$ADMIN_PASS" ] || ADMIN_PASS="$(rand_str 16 'A-Za-z0-9')"
   # 3) engines, one by one
-  for E in XRAY SINGBOX MIHOMO WIREGUARD; do
-    case "$E" in XRAY) L="Xray";; SINGBOX) L="sing-box (Hysteria2, TUIC, ...)";; MIHOMO) L="Mihomo (Mieru, Sudoku, ShadowQUIC, TrustTunnel)";; WIREGUARD) L="WireGuard";; esac
+  for E in XRAY SINGBOX MIHOMO WIREGUARD OPENVPN; do
+    case "$E" in XRAY) L="Xray";; SINGBOX) L="sing-box (Hysteria2, TUIC, ...)";; MIHOMO) L="Mihomo (Mieru, Sudoku, ShadowQUIC, TrustTunnel)";; WIREGUARD) L="WireGuard";; OPENVPN) L="OpenVPN";; esac
     v="INSTALL_$E"; envyn "${!v:-}"; r=$?
     if [ $r = 2 ]; then yesno "Install $L?" y && r=0 || r=1; fi
-    case "$E" in XRAY) DO_XRAY=$((r==0?1:0));; SINGBOX) DO_SB=$((r==0?1:0));; MIHOMO) DO_ML=$((r==0?1:0));; WIREGUARD) DO_WG=$((r==0?1:0));; esac
+    case "$E" in XRAY) DO_XRAY=$((r==0?1:0));; SINGBOX) DO_SB=$((r==0?1:0));; MIHOMO) DO_ML=$((r==0?1:0));; WIREGUARD) DO_WG=$((r==0?1:0));; OPENVPN) DO_OV=$((r==0?1:0));; esac
   done
+  # 4) Telegram bot (optional)
+  if [ -n "$BOT_TOKEN" ]; then DO_BOT=1
+  else
+    envyn "${INSTALL_BOT:-}"; r=$?
+    if [ $r = 2 ]; then yesno "Create a Telegram bot to manage the panel? (users, configs, backups, alerts, mini app)" n && r=0 || r=1; fi
+    if [ $r = 0 ]; then
+      echo "   Open @BotFather in Telegram, send /newbot, then copy the token it gives you and paste it below."
+      BOT_TOKEN="$(ask "   Bot token (Enter = skip): " "")"
+      if [ -n "$BOT_TOKEN" ]; then
+        BOT_OWNER="${TG_OWNER:-$(ask "   Your numeric Telegram ID (Enter = skip, pair later with a code): " "")}"
+        DO_BOT=1
+      fi
+    fi
+  fi
   echo
   echo " Address : $([ "$MODE" = domain ] && echo "domain $DOMAIN (https)" || echo "server IP (http)")"
-  echo " Engines : xray=$DO_XRAY sing-box=$DO_SB mihomo=$DO_ML wireguard=$DO_WG"
+  echo " Engines : xray=$DO_XRAY sing-box=$DO_SB mihomo=$DO_ML wireguard=$DO_WG openvpn=$DO_OV"
   echo "====================================================="
 else
   say "Existing install found: updating code only (data, port and service are kept)"
@@ -145,12 +159,19 @@ UNIT
 say "Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y >/dev/null 2>&1 || warn "apt update had errors"
-BASE="python3 python3-venv python3-pip curl unzip openssl ca-certificates iproute2 iptables certbot"
+BASE="python3 python3-venv python3-pip curl unzip openssl ca-certificates iproute2 iptables openssh-client certbot"
 apt-get install -y $BASE python3-certbot-dns-cloudflare >/dev/null 2>&1 \
   || apt-get install -y $BASE || die "Could not install system packages"
 if [ "$DO_WG" = 1 ] && [ "$UPGRADE" = 0 ]; then
   say "Installing WireGuard"
   apt-get install -y wireguard-tools >/dev/null 2>&1 || warn "WireGuard install failed"
+  printf 'net.ipv4.ip_forward=1\n' > /etc/sysctl.d/99-vpnpanel.conf
+  sysctl -p /etc/sysctl.d/99-vpnpanel.conf >/dev/null 2>&1 || true
+fi
+
+if [ "$DO_OV" = 1 ] && [ "$UPGRADE" = 0 ]; then
+  say "Installing OpenVPN"
+  apt-get install -y openvpn >/dev/null 2>&1 || warn "OpenVPN install failed"
   printf 'net.ipv4.ip_forward=1\n' > /etc/sysctl.d/99-vpnpanel.conf
   sysctl -p /etc/sysctl.d/99-vpnpanel.conf >/dev/null 2>&1 || true
 fi
@@ -292,6 +313,24 @@ c = sqlite3.connect("/opt/vpnpanel/data/panel.db")
 c.execute("UPDATE settings SET value=? WHERE key='server_address' AND value=''", (sys.argv[1],))
 c.commit()
 PY
+fi
+if [ "$DO_BOT" = 1 ] && [ -n "$BOT_TOKEN" ]; then
+  say "Setting up the Telegram bot"
+  ( cd "$P" && PANEL_HOME="$P" "$P/venv/bin/python" -m app.panelctl bot-setup "$BOT_TOKEN" ${BOT_OWNER:+--owner "$BOT_OWNER"} ) || warn "Bot setup failed (check the token / internet access)"
+  if [ -z "$BOT_OWNER" ]; then
+    PAIR="$( cd "$P" && PANEL_HOME="$P" "$P/venv/bin/python" -m app.panelctl bot-pair --hours 24 2>/dev/null | tail -1)"
+    [ -n "$PAIR" ] && echo "   -> Open your bot in Telegram and send:  /start $PAIR   (valid 24h, makes you the bot admin)"
+  fi
+fi
+systemctl try-restart tcm19-bot 2>/dev/null || true
+if [ "$UPGRADE" = 0 ] && [ "$DO_OV" = 1 ]; then
+  python3 - <<'PY' 2>/dev/null || true
+import sqlite3
+c = sqlite3.connect("/opt/vpnpanel/data/panel.db")
+c.execute("UPDATE settings SET value='1' WHERE key='ovpn_enabled'")
+c.commit()
+PY
+  systemctl restart vpnpanel
 fi
 sleep 2
 echo
