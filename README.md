@@ -1,6 +1,6 @@
 # TCM19 Panel
 
-A personal VPN / proxy management panel (FastAPI + SQLite, single-file Persian RTL UI) with Xray, sing-box, Mihomo, WireGuard and OpenVPN engines.
+A personal VPN / proxy management panel (FastAPI + SQLite, single-file UI in Persian (RTL), English and Russian) with Xray, sing-box, Mihomo, WireGuard and OpenVPN engines.
 
 **[راهنمای فارسی](README.fa.md)**
 
@@ -8,19 +8,19 @@ A personal VPN / proxy management panel (FastAPI + SQLite, single-file Persian R
 
 | Users | User form and blocks |
 |:---:|:---:|
-| <img src="docs/screenshots/users.png" width="300"> | <img src="docs/screenshots/user-form.png" width="300"> |
+| <img src="docs/screenshots/en/users.png" width="300"> | <img src="docs/screenshots/en/user-form.png" width="300"> |
 
 | Server health | Extra servers (nodes) |
 |:---:|:---:|
-| <img src="docs/screenshots/health.png" width="300"> | <img src="docs/screenshots/nodes.png" width="300"> |
+| <img src="docs/screenshots/en/health.png" width="300"> | <img src="docs/screenshots/en/nodes.png" width="300"> |
 
 | Reseller admins |
 |:---:|
-| <img src="docs/screenshots/resellers.png" width="300"> |
+| <img src="docs/screenshots/en/resellers.png" width="300"> |
 
 </div>
 
-> Screenshots use made-up sample data. The panel interface itself is in Persian.
+> Screenshots use made-up sample data. The panel speaks Persian, English and Russian (language button in the top bar); these screenshots are the English interface, see [README.fa.md](README.fa.md) for the Persian ones.
 
 ## Install
 
@@ -34,10 +34,10 @@ The installer asks for an IP or domain (a domain gets a free SSL certificate), t
 
 Unattended install (environment variables): `PANEL_MODE` (`ip` or `domain`), `PANEL_DOMAIN`, `PANEL_PORT`, `PANEL_USER`, `PANEL_PASS`, `INSTALL_XRAY`, `INSTALL_SINGBOX`, `INSTALL_MIHOMO`, `INSTALL_WIREGUARD`.
 
-From a package file: upload `tcm19-vNN.tgz` to `/root`, then:
+From a package file: upload `tcm19-X.Y.Z.tgz` to `/root`, then:
 
 ```bash
-cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install.sh
+cd /root && tar xzf tcm19-X.Y.Z.tgz && bash vpnpanel-installer/install.sh
 ```
 
 ## Update and remove
@@ -64,7 +64,7 @@ cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install.sh
 On the second server:
 
 ```bash
-cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install-node.sh
+cd /root && tar xzf tcm19-X.Y.Z.tgz && bash vpnpanel-installer/install-node.sh
 ```
 
 It prints an address and a connection code; enter them in the panel under Servers. To show the code again: `bash /root/vpnpanel-installer/install-node.sh show`. To remove the node agent: `... install-node.sh uninstall`.

@@ -85,10 +85,10 @@ bash <(curl -Ls https://raw.githubusercontent.com/wxmpire/TCM19-panel/main/insta
 
 ### نصب از روی فایل (بدون هاست)
 
-بسته‌ی `tcm19-vNN.tgz` را با SFTP در `/root` بگذار و:
+بسته‌ی `tcm19-X.Y.Z.tgz` را با SFTP در `/root` بگذار و:
 
 ```bash
-cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install.sh
+cd /root && tar xzf tcm19-X.Y.Z.tgz && bash vpnpanel-installer/install.sh
 ```
 
 ---
@@ -196,7 +196,7 @@ Xray و WireGuard روی سرورهای دیگر، با مدیریت واحد د
 **روی سرور دوم:**
 
 ```bash
-cd /root && tar xzf tcm19-vNN.tgz && bash vpnpanel-installer/install-node.sh
+cd /root && tar xzf tcm19-X.Y.Z.tgz && bash vpnpanel-installer/install-node.sh
 ```
 
 آدرس و «کد اتصال» را می‌دهد؛ در پنل اصلی ← **سرورها** ← افزودن سرور وارد کن.

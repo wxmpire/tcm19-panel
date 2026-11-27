@@ -199,6 +199,26 @@ say "Installing panel files"
 mkdir -p "$P/data"
 cp -a "$SRC/app" "$P/" && cp -a "$SRC/static" "$P/" || die "Copy failed"
 rm -rf "$P/app/__pycache__"
+
+# ---------- Persian web font (Vazirmatn, OFL) ----------
+# Best effort: the panel page also falls back to the same font from a CDN, then to system fonts.
+fetch_font() {
+  local d="$P/static/fonts" f="$P/static/fonts/Vazirmatn.woff2" u
+  mkdir -p "$d"
+  if [ -s "$f" ] && head -c4 "$f" 2>/dev/null | grep -q wOF2; then return 0; fi
+  for u in \
+    "https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn%5Bwght%5D.woff2" \
+    "https://raw.githubusercontent.com/rastikerdar/vazirmatn/v33.003/fonts/webfonts/Vazirmatn%5Bwght%5D.woff2" \
+    "https://github.com/rastikerdar/vazirmatn/raw/v33.003/fonts/webfonts/Vazirmatn%5Bwght%5D.woff2"; do
+    if curl -fsSL --connect-timeout 10 --max-time 60 -o "$f.tmp" "$u" 2>/dev/null \
+       && [ "$(wc -c < "$f.tmp")" -gt 20000 ] && head -c4 "$f.tmp" | grep -q wOF2; then
+      mv -f "$f.tmp" "$f"; echo "Vazirmatn font installed"; return 0
+    fi
+  done
+  rm -f "$f.tmp"; warn "Font download failed (not critical): the panel will use a CDN or system font"
+  return 0
+}
+fetch_font
 printf 'fastapi\nuvicorn\n' > "$P/requirements.txt"
 if [ ! -x "$P/venv/bin/uvicorn" ]; then
   say "Creating Python environment"
@@ -335,6 +355,7 @@ fi
 sleep 2
 echo
 echo "================ Done ================"
+echo "Version:  $(python3 -c 'import sys;sys.path.insert(0,"/opt/vpnpanel");from app.version import VERSION;print(VERSION)' 2>/dev/null)"
 if [ "$(systemctl is-active vpnpanel)" = active ]; then
   if [ "$TLS" = 1 ]; then echo "Panel:    https://$DOMAIN:$PORT"; else echo "Panel:    http://$IP:$PORT"; fi
   if [ "$UPGRADE" = 0 ]; then
